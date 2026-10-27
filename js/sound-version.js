@@ -15,7 +15,7 @@
 // los cambios más relevantes para quien juega, no un registro técnico
 // completo (eso vive en el historial de git), a petición explícita
 // ("acota la información, ahora mismo es demasiado grande").
-var APP_VERSION = '1.0.0';
+var APP_VERSION = '1.1.0';
 // "summary" (a petición explícita, "da info mas general de los parches"):
 // una frase corta y general por versión, tipo titular ("Mejora visual de
 // Ver partido"), no el detalle técnico. Se usa en la lista plegable de
@@ -24,6 +24,20 @@ var APP_VERSION = '1.0.0';
 // "items" detallados de la última, a petición explícita ("guarda resumen
 // de los parches anteriores").
 var APP_PATCH_NOTES = [
+  {
+    version: '1.1.0',
+    summary: 'Partidos mucho más reales: balón con física, balón parado, faltas y fuera de juego',
+    items: [
+      'El balón rueda, vuela y bota. Los pases largos o con rivales en medio van por alto y cualquiera que esté cerca puede cortarlos.',
+      'Saques de banda, córners, saques de puerta, faltas con barrera y penaltis. Tú eliges a quién sacar.',
+      'Las entradas pueden ser falta, con tarjetas amarillas y rojas. Y hay fuera de juego: la línea amarilla te marca al penúltimo defensor.',
+      'Los jugadores aceleran, frenan y se cansan. La barra verde es el aire y se recupera en el descanso.',
+      'Los defensas ya no se quedan quietos: presionan de dos en dos, marcan al hombre, cubren y la línea sube y baja con el balón.',
+      'Los delanteros piden el balón al espacio (nombre en verde) y el rival juega con más cabeza: conduce, combina, centra desde la banda y tira.',
+      'Los tiros pueden ir fuera, chocar con un defensa, ser blocados o despejados con rechace. El portero se tira de verdad.',
+      'Estadio con vallas, público y red que se mueve con el gol, narración de cada jugada y estadísticas en el descanso.'
+    ]
+  },
   {
     version: '1.0.0',
     summary: 'Inazuma Táctil: los partidos se juegan con el dedo, como en la DS',
