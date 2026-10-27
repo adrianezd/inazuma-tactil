@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inazuma Táctil — Fan game de Inazuma Eleven</title>
+<meta name="description" content="Partidos en vertical que juegas con el dedo, como en la DS">
+<meta name="keywords" content="inazuma eleven online, juego de inazuma eleven, inazuma eleven gratis, inazuma eleven navegador, inazuma eleven móvil, inazuma eleven futdraft, inazuma eleven roguelike, supertécnicas, hissatsu, fan game, inazuma run">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://adrianezd.github.io/inazuma-tactil/">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/icons/favicon-64.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#080d22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="IE Táctil">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="assets/icons/icon-180.png">
+
+<!-- Open Graph -->
+<meta property="og:site_name" content="Inazuma Táctil">
+<meta property="og:locale" content="es_ES">
+<meta property="og:image:alt" content="Inazuma Run, fan game de Inazuma Eleven">
+<meta property="og:title" content="Inazuma Táctil">
+<meta property="og:description" content="Partidos en vertical que juegas con el dedo, como en la DS">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://adrianezd.github.io/inazuma-tactil/">
+<meta property="og:image" content="https://adrianezd.github.io/inazuma-tactil/assets/icons/icon-512.png">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Inazuma Táctil">
+<meta name="twitter:description" content="Partidos en vertical que juegas con el dedo, como en la DS">
+<meta name="twitter:image" content="https://adrianezd.github.io/inazuma-tactil/assets/icons/icon-512.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=DotGothic16&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=202610271600">
+<link rel="stylesheet" href="skin.css?v=202610271600">
+<link rel="stylesheet" href="tactil.css?v=202610271700">
+
+</head>
+<body>
+<a class="skip-link" href="#app">Ir al juego</a>
+<header class="site-header">
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Cambiar a modo día" type="button">🌙</button>
+  <img class="site-logo" src="assets/icons/logo-256.png" width="128" height="128" alt="Mark Evans y Axel Blaze dándose la mano">
+  <h1>Inazuma <span class="hl">Táctil</span></h1>
+  <p class="tagline">Fan game no oficial · partidos en vertical que juegas con el dedo, como en la DS</p>
+</header>
+
+<main id="app" aria-live="polite">
+  <!-- El juego se renderiza aquí mediante script.js -->
+</main>
+
+
+<footer class="site-footer">
+    <p><strong>Proyecto de fan no oficial.</strong> No afiliado a Level-5 ni a los editores de Inazuma Eleven. Nombres y datos usados con fines de homenaje, sin artwork ni audio oficiales.</p>
+</footer>
+
+<script src="roster-data.js?v=202610081800"></script>
+<!-- script.js modularizado en js/ (mismo scope global, sin bundler: cada
+     archivo es una tanda de secciones consecutivas del script.js
+     original, cargadas en el mismo orden en que aparecían allí, así que
+     se comportan exactamente igual que un único archivo concatenado. -->
+<script src="js/core.js?v=202610081800"></script>
+<script src="js/rivals.js?v=202610040400"></script>
+<script src="js/captain-draft-modes.js?v=202610071300"></script>
+<script src="js/tournament.js?v=202610071300"></script>
+<script src="js/persistence-map.js?v=202610131900"></script>
+<script src="js/effects.js?v=202610022100"></script>
+<script src="js/profile.js?v=202610131900"></script>
+<script src="js/player-card.js?v=202610081800"></script>
+<script src="js/techniques.js?v=202610071000"></script>
+<script src="js/autofold.js?v=202610271600"></script>
+<script src="js/state-nav.js?v=202610131900"></script>
+<script src="js/map-node-actions.js?v=202610031900"></script>
+<script src="js/combat.js?v=202610071500"></script>
+<script src="js/progression.js?v=202610131900"></script>
+<script src="js/penalty-mode.js?v=202610071000"></script>
+<script src="js/futdraft-draft.js?v=202610131900"></script>
+<script src="js/futdraft-match.js?v=202610131900"></script>
+<script src="js/match-engine.js?v=202610091200"></script>
+<script src="js/futdraft-bracket.js?v=202610071000"></script>
+<script src="js/liga.js?v=202610071000"></script>
+<script src="js/career-mode.js?v=202610271600"></script>
+<script src="js/player-mode.js?v=202610271600"></script>
+<script src="js/world-tour.js?v=202610081800"></script>
+<script src="js/quick-match.js?v=202610071500"></script>
+<script src="js/pk-shootout.js?v=202610022100"></script>
+<script src="js/decide-mode.js?v=202610091200"></script>
+<script src="js/tactil-match.js?v=202610271700"></script>
+<script src="js/solo-face.js?v=202610271600"></script>
+<script src="js/solo-career.js?v=202610131900"></script>
+<script src="js/joy-mode.js?v=202610271600"></script>
+<script src="js/custom-tournament.js?v=202610071000"></script>
+<script src="js/aventura4.js?v=202610081200"></script>
+<script src="js/sound-version.js?v=202610271600"></script>
+<script src="js/feel.js?v=202610091500"></script>
+<script src="js/backup.js?v=202610091200"></script>
+<script src="js/codigos.js?v=202610091200"></script>
+<script src="js/engage.js?v=202610131900"></script>
+<script src="js/init.js?v=202610131900"></script>
+<script>if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }</script>
+</body>
+</html>

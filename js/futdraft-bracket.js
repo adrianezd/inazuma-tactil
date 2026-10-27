@@ -1,0 +1,336 @@
+function finishFutDraftRun() {
+  var f = G.futdraft;
+  var meta = G.meta;
+  f.reward = FUTDRAFT_BASE_REWARD + FUTDRAFT_WIN_REWARD * f.winsCount;
+  // Torneo a medida: con la plantilla que quieras, la mitad de premio.
+  if (f.mode === 'custom') f.reward = Math.round(f.reward / 2);
+  meta.points += f.reward;
+  saveMeta(meta);
+  // Tirada gratis en la Máquina de Premios solo si te proclamas campeón del
+  // FutDraft (f.champion solo existe al completar la última ronda, ver
+  // continueFutDraftMatch) -- quedar eliminado antes no cuenta como "ganar".
+  if (f.champion && f.champion.isPlayer) {
+    triggerRewardMachine('futdraftSummary');
+    return;
+  }
+  G.screen = 'futdraftSummary';
+  render();
+}
+
+window.continueFutDraftMatch = function () {
+  var f = G.futdraft;
+  var round = f.tournament.rounds[f.tournament.rounds.length - 1];
+  if (!f.lastMatchResult.playerWon) {
+    f.eliminated = true;
+    finishFutDraftRun();
+    return;
+  }
+  // El jugador ganó su partido: se resuelve el resto de la ronda sola,
+  // igual que en el Modo Torneo normal. De paso se reparten goles
+  // (fantasma, del pool de no drafteados) entre esos partidos que nunca se
+  // juegan de verdad, solo para que la tabla de goleadores/asistentes del
+  // torneo entero tenga en cuenta también esos partidos -- no cambia en
+  // nada quién gana cada uno, eso lo sigue decidiendo simulateCpuMatch
+  // con su propia tirada independiente.
+  var undraftedPool = futDraftUndraftedPool();
+  round.forEach(function (m) {
+    if (m.winner === null) {
+      var goles = simulateCpuMatchGoals(m.a, m.b);
+      var eventsA = [], eventsB = [];
+      for (var gi = 0; gi < goles[0]; gi++) eventsA.push(futDraftGoalEvent(undraftedPool));
+      for (var gj = 0; gj < goles[1]; gj++) eventsB.push(futDraftGoalEvent(undraftedPool));
+      futDraftRecordGoalEvents(f.stats, eventsA, m.a.name);
+      futDraftRecordGoalEvents(f.stats, eventsB, m.b.name);
+      m.winner = simulateCpuMatch(m.a, m.b);
+    }
+  });
+  if (round.length === 1) {
+    f.champion = round[0].winner;
+    finishFutDraftRun();
+    return;
+  }
+  var winners = round.map(function (m) { return m.winner; });
+  var nextRound = [];
+  for (var i = 0; i < winners.length; i += 2) nextRound.push({ a: winners[i], b: winners[i + 1], winner: null });
+  f.tournament.rounds.push(nextRound);
+  G.screen = 'futdraftBracket';
+  render();
+};
+
+// Cuerpo de una columna de ronda: una única casilla centrada si ya se ha
+// llegado a un cruce de 1 solo partido (semifinal de un lado, o la
+// final), o parejas conectadas con una línea (mirror=true la dibuja
+// apuntando hacia el centro, para el lado derecho) si todavía hay más de
+// un partido en esa mitad.
+function bracketColumnBodyHtml(matches, mirror) {
+  if (matches.length === 1) return '<div class="bracket-final-wrap">' + bracketMatchHtml(matches[0]) + '</div>';
+  var pairClass = 'bracket-pair' + (mirror ? ' bracket-pair-mirror' : '');
+  var html = '<div class="bracket-pairs">';
+  for (var i = 0; i < matches.length; i += 2) {
+    html += '<div class="' + pairClass + '">' + bracketMatchHtml(matches[i]) + bracketMatchHtml(matches[i + 1]) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// Cuadro a doble cara, a petición explícita: en vez de una fila de
+// columnas (ronda 1, ronda 2... final) de izquierda a derecha, cada ronda
+// (salvo la final) se reparte en dos mitades iguales -- la primera mitad
+// del array a la izquierda, la segunda a la derecha -- y se van apilando
+// hacia fuera desde el centro (ronda más temprana = columna más externa a
+// cada lado), con la Final y el Campeón en la columna central. Funciona
+// para cualquier tamaño de cuadro (8/16/32/64): en un cuadro de 32 la
+// ronda inicial tiene 16 partidos (32 equipos), así que quedan 8 partidos
+// (16 equipos) a cada lado; en uno de 64, 16 partidos (32 equipos) a cada
+// lado. La partición es correcta en cualquier ronda posterior porque el
+// emparejamiento de siguiente ronda siempre combina partidos consecutivos
+// (ver continueFutDraftMatch/nextRound), así que "primera mitad del
+// array" y "mitad izquierda del árbol" coinciden en todas las rondas.
+function renderFutDraftBracket() {
+  var t = G.futdraft.tournament;
+  var totalRounds = Math.log2(t.size);
+  var html = '<div class="screen"><div class="panel center-text"><h2 class="panel-title mb0">🏆 ' + (G.futdraft.mode === 'custom' ? 'Torneo a medida' : 'Torneo FutDraft') + '</h2><p class="dim small">' + (G.futdraft.customTeam ? escapeHtml(G.futdraft.customTeam) : 'Tu once') + ' y ' + (t.size - 1) + ' rivales, eliminación directa.</p></div>';
+  html += '<div class="panel bracket-panel"><div class="bracket-tree">';
+
+  var leftCols = '', rightCols = '', finalMatch = null;
+  t.rounds.forEach(function (round, ri) {
+    var title = roundNameForIndex(ri, totalRounds);
+    if (round.length === 1) { finalMatch = round[0]; return; }
+    var half = round.length / 2;
+    leftCols += '<div class="bracket-round-col"><div class="bracket-round-title">' + title + '</div>' +
+      bracketColumnBodyHtml(round.slice(0, half), false) + '</div>';
+    // El lado derecho se antepone (en vez de concatenar) para que, al
+    // final, quede en orden inverso: la ronda más cercana al centro
+    // primero, la más externa (ronda 1) en el borde derecho del todo.
+    rightCols = '<div class="bracket-round-col"><div class="bracket-round-title">' + title + '</div>' +
+      bracketColumnBodyHtml(round.slice(half), true) + '</div>' + rightCols;
+  });
+
+  var champion = finalMatch ? finalMatch.winner : null;
+  var centerCol = '<div class="bracket-round-col bracket-final-col">' +
+    (finalMatch ? '<div class="bracket-round-title">Final</div>' + bracketColumnBodyHtml([finalMatch], false) : '') +
+    '<div class="bracket-round-title' + (finalMatch ? ' mt' : '') + '">Campeón</div>' +
+    '<div class="bracket-trophy-wrap">' +
+      '<div class="bracket-trophy' + (champion ? '' : ' is-pending') + '">🏆</div>' +
+      '<div class="bracket-champion-name">' + (champion ? (champion.isPlayer ? escapeHtml(champion.customName || 'Tú') : escapeHtml(champion.name)) : '?') + '</div>' +
+    '</div></div>';
+
+  html += leftCols + centerCol + rightCols;
+  html += '</div></div>';
+  var lastRound = t.rounds[t.rounds.length - 1];
+  var pendingPlayerMatch = lastRound.filter(function (m) { return (m.a.isPlayer || m.b.isPlayer) && m.winner === null; })[0];
+  if (pendingPlayerMatch) {
+    html += '<div class="panel">' + matchModePickerHtml({ ver: 'playFutDraftMatch(\'dots\')', decidir: 'playFutDraftMatch(\'dots\')', simular: 'playFutDraftMatch()' }) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderFutDraftMatchResult() {
+  var r = G.futdraft.lastMatchResult;
+  // Escudo/nombre propio de Modo Carrera en vez del equipado en la web,
+  // y orden local/visitante real, igual que la pantalla en vivo
+  // (renderFutDraftLive) -- antes esta pantalla de resultado (justo
+  // después de simular) siempre volvía al escudo de la web y a "Tú" a
+  // la izquierda (aquí y en el resumen de goles/asistencias), deshaciendo
+  // lo que ya se veía bien durante el propio partido, un bug real
+  // corregido a petición explícita.
+  // BUG REAL arreglado: esta pantalla de resultado (justo después de
+  // simular) solo miraba isCareer, así que un partido de Modo Mundial
+  // volvía SIEMPRE al escudo equipado en la config general y a "Tú" en
+  // vez de tu escudo/nombre de ahí (p.ej. Raimon), aunque durante el
+  // propio partido (renderFutDraftLive) sí saliera bien -- a petición
+  // explícita ("en modo mundial, aunque elija el raimon, los partidos
+  // salen con el escudo que yo tenga elegido en la configuración
+  // general"). Reutiliza el mismo criterio que el partido en vivo.
+  var isCareer = r.isCareer && G.career;
+  var isWorldTour = r.isWorldTour && G.worldTour;
+  var youShield = isCareer ? careerClubShieldPath(G.career) : isWorldTour ? worldTourShieldPath() : getPlayerShieldPath();
+  var youName = isCareer ? careerClubDisplayName(G.career) : isWorldTour ? G.worldTour.teamName : 'Tú';
+  if (r.youName) { youName = r.youName; youShield = r.youShield; }
+  var youAreHome = r.youAreHome !== false;
+  var timelineHtml = (r.timeline && r.timeline.length)
+    ? '<div class="panel">' +
+        '<h3 style="margin-bottom:8px">Resumen del partido</h3>' +
+        '<div class="futdraft-timeline">' +
+          r.timeline.map(function (ev) { return futDraftTimelineRowHtml(ev, r.oppName, youShield, youAreHome); }).join('') +
+        '</div>' +
+      '</div>'
+    : '<p class="dim small center-text">Partido sin goles en el tiempo reglamentario.</p>';
+  // Posesión y tarjetas del partido (solo si se jugó con Jugar/puntitos,
+  // ver G.futdraft.lastLiveStats en js/futdraft-match.js) -- a petición
+  // explícita ("en el resumen de partido abajo, haya tarjetas, y
+  // posesión").
+  var statsHtml = futDraftMatchStatsHtml(G.futdraft.lastLiveStats);
+  // Cabecera del resultado: icono y título grandes y los datos del
+  // partido en etiquetas (antes una línea gris suelta, "Fuerza de X: 70 /
+  // 100"). En Partido rápido no juegas con nadie: dice qué equipo gana.
+  var isDraw = r.myGoals === r.oppGoals && !r.penalty;
+  var bannerCls = isDraw ? 'result-draw' : (r.playerWon ? 'result-win' : 'result-loss');
+  var bannerIcon = '<span class="result-icon">' + (isDraw ? '🤝' : r.playerWon ? '🏆' : '💢') + '</span>';
+  var bannerTitle = isDraw ? 'Empate' : r.playerWon ? '¡Victoria!' : 'Derrota';
+  function chip(label, value) { return '<span class="result-chip">' + label + (value !== undefined ? ' <b>' + value + '</b>' : '') + '</span>'; }
+  var chips = [chip('Fuerza de ' + escapeHtml(r.oppName), r.oppPower)];
+  if (r.isQuick) {
+    var winnerName = r.playerWon ? r.youName : r.oppName;
+    bannerCls = isDraw ? 'result-draw' : 'result-quick';
+    if (!isDraw) bannerIcon = '<img class="result-icon result-icon-shield" src="' + escapeHtml(r.playerWon ? r.youShield : r.oppShield) + '" alt="">';
+    bannerTitle = isDraw ? 'Empate' : 'Gana ' + escapeHtml(winnerName);
+    chips = [chip('Fuerza de ' + escapeHtml(r.youName), r.youPower), chip('Fuerza de ' + escapeHtml(r.oppName), r.oppPower)];
+  }
+  // Carrera, Mundial y Partido rápido no daban Puntos de Espíritu por
+  // partido: se dan aquí, una sola vez por resultado (Liga y FutDraft ya
+  // los dan al acabar el torneo).
+  if (r.spiritPoints === undefined && (r.isCareer || r.isWorldTour || r.isQuick)) {
+    r.spiritPoints = awardSpiritPoints(r.isQuick ? SPIRIT_QUICK_MATCH : isDraw ? SPIRIT_MATCH_DRAW : r.playerWon ? SPIRIT_MATCH_WIN : SPIRIT_MATCH_LOSS);
+  }
+  if (r.spiritPoints) chips.push('<span class="result-chip result-chip-spirit">' + spiritIcon() + ' <b>+' + r.spiritPoints + '</b></span>');
+  if (r.penalty) chips.push(chip('Penaltis', youAreHome ? r.penalty.myGoals + '-' + r.penalty.oppGoals : r.penalty.oppGoals + '-' + r.penalty.myGoals));
+  if (r.modifier && r.modifier !== 'ninguno') chips.push('<span class="result-chip" title="' + escapeHtml(FUTDRAFT_MODIFIERS_BY_ID[r.modifier].desc) + '">🌦️ ' + escapeHtml(FUTDRAFT_MODIFIERS_BY_ID[r.modifier].name) + '</span>');
+  var bannerHtml =
+    '<div class="panel result-banner ' + bannerCls + '">' +
+      '<div class="result-kicker">' + (r.kicker ? escapeHtml(r.kicker) : r.isQuick ? 'Partido rápido · Final' : 'Final del partido') + '</div>' +
+      '<div class="result-head">' + bannerIcon + '<h3 class="result-title">' + bannerTitle + '</h3></div>' +
+      '<div class="result-chips">' + chips.join('') + '</div>' +
+    '</div>';
+  var youSideHtml = '<div class="score-side"><img class="team-shield" src="' + escapeHtml(youShield) + '" alt=""><div class="score-name">' + escapeHtml(youName) + '</div><div class="score-num">' + r.myGoals + '</div></div>';
+  var oppSideHtml = '<div class="score-side"><img class="team-shield" src="' + escapeHtml(r.oppShield) + '" alt=""><div class="score-name">' + escapeHtml(r.oppName) + '</div><div class="score-num">' + r.oppGoals + '</div></div>';
+  return (
+    '<div class="screen">' +
+      '<div class="match-scoreboard">' +
+        (youAreHome ? youSideHtml : oppSideHtml) +
+        '<div class="score-vs">VS</div>' +
+        (youAreHome ? oppSideHtml : youSideHtml) +
+      '</div>' +
+      bannerHtml +
+      timelineHtml +
+      statsHtml +
+      (r.buttonsHtml ? r.buttonsHtml
+        : r.isQuick
+        ? '<button class="btn btn-primary btn-block mt" onclick="actionGoQuickMatch()">Otro partido</button><button class="btn btn-outline btn-block mt" onclick="actionBackToMenu()">Menú</button>'
+        : r.isWorldTour
+        ? '<button class="btn btn-primary btn-block mt" onclick="continueWorldTourMatch()">Continuar</button>'
+        : r.isCareer
+          ? (r.isSupercopa
+              ? '<button class="btn btn-primary btn-block mt" onclick="continueCareerSupercopaMatch()">Volver a la Supercopa</button>'
+              : r.isChampions
+                ? '<button class="btn btn-primary btn-block mt" onclick="continueCareerChampionsMatch()">Volver a la Champions</button>'
+                : r.isCup
+                  ? '<button class="btn btn-primary btn-block mt" onclick="continueCareerCupMatch()">Volver a la Copa</button>'
+                  : '<button class="btn btn-primary btn-block mt" onclick="continueCareerMatchday()">Volver a Jornada</button>')
+          : r.isLiga
+            ? '<button class="btn btn-primary btn-block mt" onclick="continueLigaMatchday()">Ver jornada</button>'
+            : '<button class="btn btn-primary btn-block mt" onclick="continueFutDraftMatch()">' + (r.playerWon ? 'Continuar' : 'Ver resultado') + '</button>') +
+      (r.isCareer && G.careerEventNotice ? renderCareerEventNotice() : '') +
+    '</div>'
+  );
+}
+
+// Panel de "Máximo goleador y asistente" + top 8 de cada uno, compartido
+// por el resumen del torneo de FutDraft, el de Liga y (con título propio,
+// ver segundo parámetro) las dos tablas de Modo Carrera (temporada actual
+// e histórico del club) -- stats es { scorers: {}, assists: {} } (ver
+// futDraftRecordGoalEvents).
+function renderTopScorersAssistsPanel(stats, title, isCareer) {
+  stats = stats || { scorers: {}, assists: {} };
+  var scorers = sortedStatsList(stats.scorers).slice(0, 3);
+  var assists = sortedStatsList(stats.assists).slice(0, 3);
+  if (!scorers.length && !assists.length) return '';
+  var topScorer = scorers[0], topAssist = assists[0];
+  function listHtml(list) {
+    return list.map(function (s, i) {
+      var shieldSrc = s.team === 'Tu equipo' ? (isCareer && G.career ? careerClubShieldPath(G.career) : getPlayerShieldPath()) : teamShieldPath(s.team);
+      return '<div class="futdraft-timeline-row"><span>' + (i + 1) + '.</span>' + avatarHtml(s.player) +
+        '<img class="futdraft-timeline-shield" src="' + escapeHtml(shieldSrc) + '" alt="" title="' + escapeHtml(s.team) + '">' +
+        '<span style="flex:1;text-align:left">' + escapeHtml(s.nombre) + '</span><span class="dim">' + s.count + '</span></div>';
+    }).join('');
+  }
+  return (
+    '<div class="panel">' +
+      '<h3 style="margin-bottom:8px">' + escapeHtml(title || 'Goleadores y asistentes del torneo') + '</h3>' +
+      (topScorer ? '<p class="dim small">⚽ Máximo goleador: <strong>' + escapeHtml(topScorer.nombre) + '</strong> (' + escapeHtml(topScorer.team) + ') — ' + topScorer.count + ' gol' + (topScorer.count === 1 ? '' : 'es') + '</p>' : '') +
+      (topAssist ? '<p class="dim small">🅰️ Máximo asistente: <strong>' + escapeHtml(topAssist.nombre) + '</strong> (' + escapeHtml(topAssist.team) + ') — ' + topAssist.count + ' asistencia' + (topAssist.count === 1 ? '' : 's') + '</p>' : '') +
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">' +
+        '<div style="flex:1;min-width:140px"><h4 style="margin-bottom:4px">Goleadores</h4>' + listHtml(scorers) + '</div>' +
+        '<div style="flex:1;min-width:140px"><h4 style="margin-bottom:4px">Asistentes</h4>' + listHtml(assists) + '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function renderFutDraftSummary() {
+  var f = G.futdraft;
+  var won = f.champion && f.champion.isPlayer;
+  var title = won ? '🏆 ¡Campeón del torneo!' : 'Eliminado';
+  return (
+    '<div class="screen">' +
+      pageTopHtml('actionBackToMenu()', '' + title + '', '🏆') +
+      '<div class="panel center-text page-intro">' +
+        (won ? '<div class="bracket-trophy" style="margin:0 auto">🏆</div>' : '<p class="dim small">Tu once no llegó hasta el final esta vez.</p>') +
+        '<p class="dim small">' + f.winsCount + ' partido' + (f.winsCount === 1 ? '' : 's') + ' ganado' + (f.winsCount === 1 ? '' : 's') + '</p>' +
+        '<p class="currency-display">' + spiritIcon() + ' +' + f.reward + ' Puntos de Espíritu</p>' +
+      '</div>' +
+      renderTopScorersAssistsPanel(f.stats) +
+      '<div class="panel center-text">' +
+        '<button class="btn btn-outline btn-block" onclick="actionShareFutDraftResult()">Compartir 🔗</button>' +
+        (G.futdraftShareMessage ? '<p class="dim small">' + escapeHtml(G.futdraftShareMessage) + '</p>' : '') +
+        (G.futdraftShareUrl ? '<input class="select-field mt" type="text" readonly value="' + escapeHtml(G.futdraftShareUrl) + '" onclick="this.select()">' : '') +
+      '</div>' +
+      '<div class="panel center-text">' +
+        (f.mode === 'custom'
+          ? '<button class="btn btn-primary btn-block" onclick="actionGoCustomTourney()">Otro torneo</button>'
+          : '<button class="btn btn-primary btn-block" onclick="actionGoFutDraftModeSelect()">Nuevo draft</button>') +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// "Compartir resultado" del torneo terminado, a petición explícita ("que
+// puedas compartir futdrafts también cuando acabas uno"): mismo
+// mecanismo que la plantilla (encodeShareParam en la URL). Reutiliza
+// f.stats (goleadores/asistentes de ESTE torneo) tal cual, ya tiene el
+// formato que espera renderTopScorersAssistsPanel.
+window.actionShareFutDraftResult = function () {
+  var f = G.futdraft;
+  if (!f) return;
+  var summary = {
+    won: !!(f.champion && f.champion.isPlayer),
+    winsCount: f.winsCount, reward: f.reward,
+    mode: f.mode, bracketSize: f.tournament ? f.tournament.size : null,
+    stats: f.stats
+  };
+  var url = location.origin + location.pathname + '?futdraftResult=' + encodeShareParam(summary);
+  G.futdraftShareUrl = url;
+  G.futdraftShareMessage = 'Copia el enlace de abajo para compartirlo.';
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function () {
+      G.futdraftShareMessage = 'Enlace copiado al portapapeles.';
+      render();
+    }).catch(function () { render(); });
+  }
+  render();
+};
+function renderFutDraftSharedResult() {
+  var summary = G.futdraftSharedResult;
+  if (!summary) {
+    return '<div class="screen"><div class="panel center-text"><p class="dim small">Este enlace de resultado no es válido.</p><button class="btn btn-primary btn-block mt" onclick="doBackToMenuNow()">Volver al menú</button></div></div>';
+  }
+  var title = summary.won ? '🏆 ¡Campeón del torneo!' : 'Eliminado';
+  return (
+    '<div class="screen">' +
+      '<div class="panel center-text">' +
+        '<h2 class="panel-title">Resultado compartido</h2>' +
+        '<h3 class="mt">' + title + '</h3>' +
+        (summary.won ? '<div class="bracket-trophy" style="margin:0 auto">🏆</div>' : '') +
+        '<p class="dim small">' + summary.winsCount + ' partido' + (summary.winsCount === 1 ? '' : 's') + ' ganado' + (summary.winsCount === 1 ? '' : 's') + (summary.bracketSize ? (' de un torneo de ' + summary.bracketSize + ' equipos') : '') + '</p>' +
+        (typeof summary.reward === 'number' ? '<p class="currency-display">' + spiritIcon() + ' +' + summary.reward + ' Puntos de Espíritu</p>' : '') +
+      '</div>' +
+      (summary.stats ? renderTopScorersAssistsPanel(summary.stats) : '') +
+      '<div class="panel center-text">' +
+        '<button class="btn btn-primary btn-block" onclick="actionGoFutDraftModeSelect()">Jugar tú</button>' +
+        '<button class="btn btn-outline btn-block mt" onclick="doBackToMenuNow()">Volver al menú</button>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
